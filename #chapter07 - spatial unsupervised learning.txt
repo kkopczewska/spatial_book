@@ -1,0 +1,506 @@
+library(cluster)
+library(factoextra)
+
+# clustering points in the geographical space
+# columns 23:24 contain geographical coordinates
+c1<-clara(firms[,23:24], 5, metric="euclidean", sampsize=1000)
+
+# alternative command of CLARA algorithm
+c2<-eclust(firms[,23:24], k=5, FUNcluster="clara") # factoextra::
+
+c1$clustering # clustering vector
+fviz_cluster(c1) # graphics of division into clusters, factoextra::
+fviz_silhouette(c1) # silhouette statistics, factoextra::
+
+# global silhouette statistics chart, command from factoextra::
+fviz_nbclust(firms[1:5000,23:24], clara, method="silhouette")
+
+# Hopkins statistics chart, factoextra:: package
+get_clust_tendency(firms[1:1000,23:24], 2, graph=TRUE, gradient=list(low="red", mid="white", high="blue"), seed=123) 
+
+# gap statistic
+# subset of 5000 obs., max. 10 clusters and 5 iterations
+gap<-clusGap(firms[1:5000,23:24], FUN=kmeans, K.max=10, B=5)
+gap
+
+# gap plot with the default selection criterion: firstSEmax
+fviz_gap_stat(gap) 
+
+# gap chart when changing the selection criterion to globalmax
+fviz_gap_stat(gap, linecolor="red", maxSE=list(method="globalmax"))
+
+# creation of a map subset
+voi.df<-as.data.frame(voi) 
+lubelskie.voi<-voi[voi.df$jpt_nazwa_=="lubelskie", ] 
+
+# drawing empirical data without division into clusters
+plot(lubelskie.voi, main="Lubelskie NTS2")
+points(firms$coords.x1, firms$coords.x2, pch=".")
+
+# drawing empirical data divided into clusters
+library(wesanderson) 		# colour palette
+cols<-wes_palette(n=6, name="GrandBudapest1", type="continuous")
+cols			# displays the colours available in the palette
+
+variable <-c1$clustering 	# variable for colouring
+summary(variable)		# variable summary
+brks<-c(0, 1, 2, 3, 4, 5) 	# intervals
+
+plot(lubelskie.voi) 		# drawing a subset map 
+points(firms[,23:24], col=cols[findInterval(variable, brks)], 
+pch=21, bg=cols[findInterval(variable, brks)], cex=0.2)
+legend("bottomleft", legend=brks, pt.bg=cols, bty="n", pch=21)
+title(main=" Clustering of geolocation 
+with the CLARA algorithm")
+savePlot(filename="CLARA partitioning", type="jpg")
+
+# creating a random identifier to sort the data
+firms$los<-runif(n=dim(firms)[1],min=0,max=1) # vector of random numbers
+
+library(doBy)
+firm<-orderBy(~los, data=firms) # sorting the data set
+firm.sub<-firms[1:2000, ] # randomly selected 2000 observations
+
+c3<-kmeans(firm.sub[,23:24], 5)
+c3
+
+library(cluster)
+c4<-pam(firm.sub[,23:24], 5)
+
+library(viridis)
+cols<-viridis(6)			# color palette
+brks<-c(0, 1, 2, 3, 4, 5) 	# intervals
+
+variable<-c3$cluster 		# clustering vector
+plot(lubelskie.voi) 		# drawing a map section
+points(firm.sub[,23:24], col=cols[findInterval(variable, brks)], 
+pch=21, bg=cols[findInterval(variable, brks)], cex=0.8)
+points(c3$centers, col="red", pch=".", cex=3) 
+points(c3$centers, col="red", cex=3) 
+title(main="Clusters by k-means algorithm")
+
+variable<-c4$clustering 		# clustering vector
+plot(lubelskie.voi) 		# drawing a map section
+points(firm.sub[,23:24], col=cols[findInterval(variable, brks)], 
+pch=21, bg=cols[findInterval(variable, brks)], cex=0.8)
+points(c4$medoids, col="red", pch=".", cex=3) 
+points(c4$medoids, col="red", cex=3) 
+title(main="Clusters by PAM algorithm")
+
+fviz_cluster(list(data=firm.sub[,23:24], cluster=c3$cluster), ellipse.type="norm", geom="point", stand=FALSE, palette="jco", ggtheme=theme_classic()) #factoextra::
+
+fviz_cluster(list(data=firm.sub[,23:24], cluster=c4$clustering), ellipse.type="norm", geom="point", stand=FALSE, palette="jco", ggtheme=theme_classic()) #factoextra::
+
+firmy.out<-firmy[2001:2100,]
+
+library(flexclust)
+c3.kcca<-as.kcca(c3, firmy.sub[,23:24]) # conversion to kcca
+c3p<-predict(c3.kcca, firmy.out[,23:24]) # prediction for k-means
+
+c4.kcca<-as.kcca(c4, firmy.sub[,23:24]) # conversion to kcca
+c4p<-predict(c4.kcca, firmy.out[,23:24]) # prediction for PAM
+
+cols<-viridis(6, alpha=0.2)	# viridis::, and also plasma()
+brks<-c(0, 1, 2, 3, 4, 5) 	
+lubelskie.woj<-woj[woj$jpt_nazwa_=="lubelskie", ] 
+plot(lubelskie.woj, main="Assgning new data
+with k-means algorithm") 
+points(firmy.sub[,23:24], pch=21, bg=cols[findInterval(c3$cluster, brks)], col=cols[findInterval(c3$cluster, brks)], cex=0.8)
+points(c3$centers, col="red", pch=".", cex=2) 
+points(c3$centers, col="red", cex=3) 
+text(c3$centers, labels=rownames(c3$centers), font=2)
+text(firmy.out[,23:24], as.character(c3p)) # new points
+
+library(dbscan)
+sub<-firms[1:5000,23:24] # 5000 obs have been selected for analysis
+head(kNNdist(sub, k=5)) # knn = 5 neighbours established
+
+kNNdistplot(sub, k=5) # distance chart for knn = 5
+abline(h=0.01, col="red", lty=2) #  dashed red line
+
+kNNdistplot(sub, k=20) # distance chart for knn=20
+abline(h=0.01, col="red", lty=2) #  dashed red line
+      
+a<-kNN(sub, k=3) # searching for the nearest 3 neighbours of each point
+head(a$dist) # distance to the k-nearest neighbours
+
+head(a$id) # id k nearest neighbours
+
+a2<-frNN(sub, eps=0.01) # searching for neighbours within a radius of 0.01
+head(a2$dist) # distances to neighbours within a given radius
+
+head(a2$id) # id of neighbours in a given radius
+
+a3<-pointdensity(sub, eps=0.01, type="frequency") # local density
+head(a3) # the first point has 4 neighbors within a radius of ?=0.01
+
+a4<-lof(sub, k=3) # comparison of the density of local points
+head(a4)
+
+dbs1<-dbscan(sub, eps=0.01, minPts=5) # clustering
+hullplot(sub, dbs1) # points chart with marked clusters
+
+dbs2<-dbscan(sub, eps=0.05, minPts=20)
+hullplot(sub, dbs2, solid=TRUE, alpha=0.7)
+
+sub1<-firms[5001:5010,23:24] # 10 new points were selected
+#dbs2<-dbscan(sub, eps=0.05, minPts=20) # previous clustering 
+predict(dbs2, newdata=sub1, data=sub) # prediction
+
+# simulation of clustering scenarios due to eps and minPts
+vec.i<-(1:20)*0.005 	# eps parameter, in rows
+vec.j<-(1:20)*5		# minPts (knn) parameter, in columns
+result.i<-matrix(0, nrow=20, ncol=20)
+rownames(result.i)<-vec.i
+colnames(result.i)<-vec.j
+result.j<-matrix(0, nrow=20, ncol=20)
+rownames(result.j)<-vec.i
+colnames(result.j)<-vec.j
+
+for(i in 1:20){
+for(j in 1:20){
+dbs.temp<-dbscan(sub, eps=vec.i[i], minPts=vec.j[j])
+result.i[i,j]<-max(dbs.temp$cluster)
+result.j[i,j]<-length(which(dbs.temp$cluster==0))/dim(sub)[1] 
+}}
+
+result.i # the number of clusters created
+
+# density distributions
+plot(density(result.i), main="distribution of the number of clusters 
+depending on the eps and minPts parameters")
+plot(density(result.j), main="distribution of the noise percentage 
+depending on the eps and minPts parameters")
+
+# surface charts with contours
+image(result.i, axes=TRUE)
+contour(result.i, add=TRUE, drawlabels=FALSE)
+image(result.j)
+contour(result.j, add=TRUE, drawlabels=TRUE) # with contour lines
+
+# surface 3D static charts
+persp(1:20, 1:20, result.i)
+persp(1:20, 1:20, result.j)
+
+library(SpatPCA)
+library(pracma)
+
+dane<-unempl[,85:96]		# data selection for one year
+dane.t<-t(dane) 				# data transposition
+dane.td<- detrend(dane.t, "linear")	# time series without trend, pracma ::
+crds<-coordinates(county) 		# a reminder of centroids of units
+
+# 3D PCA with automatically set PCA parameters
+spca<-spatpca(x=crds, Y=dane.td)	
+attributes(spca)			# available PCA spatial slots
+
+head(spca$eigenfn)
+
+# scatterplot with a map outline for the first main PCA component
+# in search of spatial trends
+library(fields)
+quilt.plot(crds, spca$eigenfn[,1])	# from the fields:: field
+plot(voi, add = TRUE, border="grey80")
+
+# the first main component over time
+plot(dane.td%*%spca$eigenfn[,1], type="l", ylab="The first principal component ") 
+
+# scatterplot of both components
+# in the search for outliers
+plot(spca$eigenfn[,1], spca$eigenfn[,2]) # Fig.7.15a
+abline(h=-0.1, lty=3, col="grey80")
+abline(v=-0.1, lty=3, col="grey80")
+
+# selection of negative and positive outliers from the eigenvector 
+a = -0.1 # minimum of 1.st quadrant – border of outliers
+# the first component smaller than -0.1, negative outlier
+outs.n<-which(spca$eigenfn[,1]<a)
+unempl[outs.n, c(3,6,85)]	# 
+
+# selecting outliers from the dataset a=0
+# first component greater than a=0, positive outlier
+a=0
+outs.p<-which(spca$eigenfn[,1]>a)
+unempl[outs.p, c(3,6,85)]	# selecting outliers from the dataset
+
+# marking outliers on the map
+quilt.plot(crds, spca$eigenfn[,1])	# Fig.7.15b
+points(crds[outs.n,1], crds[outs.n,2], pch=21, col="black", cex=2)
+points(crds[outs.p,1], crds[outs.p,2], pch=24, col="black", cex=2)
+plot(voi, add = TRUE, border="grey80")
+legend(15,50, c("low EF", "high EF"), pch=c(21,24), bty="n", cex=0.8)
+
+# kriging for new points
+# in search of extrapolation of the spatial trend
+
+# drawing new points in the map area and their conversion to the matrix class
+# draw options: random | regular | stratified
+library(sp)
+newpoints<-spsample(pl, 20000, type="stratified") # from the sp package
+newpoints.df<-as.data.frame(newpoints)
+newpoints.m<-as.matrix(newpoints.df)
+
+# interpolation by kriging on new points
+prognosis<-spatpca(x=crds, Y=dane.td, K=spca$Khat, tau1=spca$stau1, 
+       tau2=spca$stau2, x_new=newpoints.m)
+quilt.plot(newpoints.m, prognosis$eigenfn[,1])
+plot(voi, add = TRUE, border="grey80")
+
+# preparation of data for estimation
+# selecting variables from the data set
+data<-unempl[,c(1:10,99:101)]
+
+# contiguity spatial weights matrix
+crds<-coordinates(county)
+cont.nb<-poly2nb(as(county, "SpatialPolygons"))
+cont.listw<-nb2listw(cont.nb, style="W")
+
+# spatial weights matrix by inverse distance
+counties.knn<-knearneigh(crds, k=379) 
+counties.nb<-knn2nb(counties.knn)
+dist<-nbdists(counties.nb, crds)  
+dist1<-lapply(dist, function(x) 1/x)  # list class object
+# list class object - weight according to the distance criterion
+invdist.listw<-nb2listw(counties.nb, glist=dist1)
+
+# time-space lags
+data$X2018.03.Wconti<-lag.listw(cont.listw, data$X2018.03)
+data$X2018.04.Wconti<-lag.listw(cont.listw, data$X2018.04)
+data$X2018.03.Winvdist<-lag.listw(invdist.listw, data$X2018.03)
+data$X2018.04.Winvdist<-lag.listw(invdist.listw, data$X2018.04)
+
+# model
+library(spgwr)
+
+eq<-X2018.05 ~ X2018.04 + X2018.03 + X2018.04.Wconti +X2018.03.Wconti + X2018.04.Winvdist + X2018.03.Winvdist + odle
+
+# bandwidth
+bw<-ggwr.sel(eq, data=data, coords=crds, family=poisson(), longlat=TRUE)
+
+# GWR model # generalized geographically weighted regression
+model.ggwr<-ggwr(eq, data=data, coords=crds, family=poisson(), longlat=TRUE, bandwidth=bw)
+model.ggwr
+
+library(GISTools)
+choropleth(county, model.ggwr$SDF$X2018.04)
+choropleth(county, model.ggwr$SDF$X2018.04.Wconti)
+choropleth(county, model.ggwr$SDF$X2018.04.Winvdist)
+choropleth(county, model.ggwr$SDF$odle)
+
+# clustering of GWR coefficients – Fig.7.18a
+# ex ante survey of the optimal number of clusters
+library(factoextra)
+fviz_nbclust(as.data.frame(model.ggwr$SDF[,2:9]), FUNcluster=kmeans)
+
+# clustering - approach 1 – stats:: package - Fig.7.18b
+# kmeans() command from the stats:: package gives the result in the kmeans class
+clusters1<-kmeans(as.data.frame(model.ggwr$SDF[,3:5]), 2) # 2 clusters
+choropleth(pow, clusters1$cluster) # the second argument is a clustering vector
+title(main="2 clusters, results from kmeans()")
+
+# clustering - approach 2 - factoextra:: package 
+# eclust () from the factoextra:: package gives the result in kmeans and eclust classes
+
+clusters2<-eclust(as.data.frame(model.ggwr$SDF[,2:5]), "kmeans", k=8) 
+choropleth(county, clusters2$cluster) # Fig.7.19a
+title(main="8 clusters, result from eclust()")
+text(clusters2$centers[,5:6], labels=1:8, cex=2, col="green")
+
+fviz_silhouette(clusters2)   # Fig.7.19b                                                                                                     
+
+fviz_cluster(clusters2, geom="point", ellipse.type="norm") # 2D projection Fig.7.19c
+
+clusters2$silinfo # quality of clustering
+
+clusters2$size	# the size of clusters
+
+# creating dummy variables for clusters (divided into 8 clusters)
+data$clust1<-rep(0, times=dim(dane)[1])
+data$clust1[clusters2$cluster==1]<-1
+data$clust2<-rep(0, times=dim(dane)[1])
+data$clust2[clusters2$cluster==2]<-1
+data$clust3<-rep(0, times=dim(dane)[1])
+data$clust3[clusters2$cluster==3]<-1
+data$clust4<-rep(0, times=dim(dane)[1])
+data$clust4[clusters2$cluster==4]<-1
+data$clust5<-rep(0, times=dim(dane)[1])
+data$clust5[clusters2$cluster==5]<-1
+data$clust6<-rep(0, times=dim(dane)[1])
+data$clust6[clusters2$cluster==6]<-1
+data$clust7<-rep(0, times=dim(dane)[1])
+data$clust7[clusters2$cluster==7]<-1
+
+# new equation taking into account clusters of GWR coefficients
+eq1<-X2018.05~ X2018.04 + X2018.03 + X2018.04.Wconti + X2018.03.Wconti + odle + clust1 + clust2 + clust3 + clust4 + clust5 + clust6 + clust7
+
+cont.listw<-nb2listw(cont.nb, style="W") # reminder of the matrix W
+invdist.listw<-nb2listw(counties.nb, glist=dist1) # reminder of the matrix W
+
+# spatial error model
+model.sem<-errorsarlm(eq1, data=data, cont.listw)
+summary(model.sem)
+
+# a-spatial linear model
+model.ols<-lm(eq1, data=data)
+summary(model.ols)
+
+# creating a subset and formatting the coordinate
+firm.sub<-firms[20000:22000, 23:25] # variables x,y,z
+class(firm.sub) 
+
+# headings: x and y is the location, with the observation feature
+colnames(firm.sub)<-c("x","y","z") 
+coordinates(firm.sub)<-c("x","y") # defining the coordinate
+class(firm.sub) # visible change of the object class
+
+# giving the projection to the data collection
+proj4string(firm.sub)<-"+proj=longlat +datum=WGS84 +ellps=WGS84"
+
+# projection formatting: defining the coordinate as planar
+firm.sub<-spTransform(firm.sub, CRS("+proj=merc +datum=WGS84 +ellps=WGS84")) 
+
+# projection formatting: defining the coordinate as spherical
+firm.sub<-spTransform(firm.sub, CRS("+proj=longlat +datum=WGS84 +ellps=WGS84")) 
+
+library(geosphere)
+# requires spherical coordinates, result in meters
+mdist<-distm(firm.sub) 
+mdist[1:5, 1:5]
+
+mdist.km<-mdist/1000 # result in km
+mdist.km[1:5, 1:5]
+
+hc<-hclust(as.dist(mdist), method="complete")
+firm.sub$clust<-cutree(hc, h=60000)# neighbors within a radius of 60km
+firm.sub$clust<-cutree(hc, k=5) # division into 5 clusters
+plot(hc)
+plot(hc, hang=-1) # lower label management
+      
+plot(hc, hang=-1) # typical dendrogram
+# interactive command that activates the cursor selection mode
+x<-identify(hc)
+x # displaying observations belonging to selected branches
+
+# a rectangle that divides the result into three clusters
+plot(hc)
+rect.hclust(hc, k=3, border="red") 
+
+# two rectangles for the second and fourth cluster
+plot(hc)
+x<-rect.hclust(hc, h=100000, which = c(2,4), border=5:6)
+
+library(rgeos)
+how.many.clust<- max(firm.sub$clust)
+centr<-matrix(0, ncol=2, nrow=how.many.clust)
+for (i in 1:how.many.clust)
+centr[i,]<-gCentroid(subset(firm.sub, clust == i))@coords
+centr
+
+plot(firm.sub, col=rainbow(5)[factor(firm.sub$clust)], pch=".", cex=3)
+points(centr, pch=".", cex=10, col="black")
+plot(lubelskie.voi, add=TRUE)
+
+library(dismo)
+rings<-circles(centr, d=30000, lonlat=T, dissolve=TRUE) # r=30km
+plot(rings@polygons, axes=TRUE, add=TRUE) 
+
+dane<-unempl[,85:96]
+crds<-coordinates(county)
+D0<-dist(dane, method="euclidean")
+
+library(geosphere)
+D1<-as.dist(distm(crds))
+
+library(ClustGeo)
+range.alpha<-seq(0,1,0.1)
+chosen<-choicealpha(D0,D1,range.alpha,K=5,graph=FALSE)
+plot(chosen, cex=0.8,norm=FALSE) # Q - Fig.7.23a
+#plot(chosen, cex=0.8,norm=TRUE)  # standardized Q	
+
+alpha<-0.35	
+hcg<-hclustgeo(D0,D1,alpha=alpha, wt=NULL)
+plot(hcg,labels=FALSE) # typical dendrogram for full classification
+hcg.cut<-cutree(hcg, k=5)
+hcg.cut
+
+plot(pow, border="grey", col=hcg.cut) # map of fig. 7.23b
+
+inertion<-matrix(0, nrow=3, ncol=2) #object to store results
+colnames(inertion)<-c("D0- features ","D1-localization")
+rownames(inertion)<-c("intra-cluster", "total", "percentage")
+
+inertion[1,1]<-withindiss(D0, part=hcg.cut)	# intra-cluster
+inertion[1,2]<-withindiss(D1, part=hcg.cut)
+inertion[2,1]<-inertdiss(D0) 			# overall
+inertion[2,2]<-inertdiss(D1) 
+inertion[3,1]<-inertion[1,1]/ inertion[2,1] #percentage	
+inertion[3,2]<-inertion[1,2]/ inertion[2,2]
+inertion
+
+1-inertion[3,]				# Q measure
+
+# intra-cluster inertia for subsequent clusters - D0
+i1<-inert(dane, indices=which(hcg.cut==1))
+i2<-inert(dane, indices=which(hcg.cut==2))
+i3<-inert(dane, indices=which(hcg.cut==3))
+i4<-inert(dane, indices=which(hcg.cut==4))
+i5<-inert(dane, indices=which(hcg.cut==5))
+
+# values of individual inertia and their sum
+cbind(i1, i2, i3, i4, i5, sum(i1, i2, i3, i4, i5)) 
+
+# data transformation
+crds<-coordinates(county)
+# ID variable [,12] and unemployment variable [,101]
+unempl1<-SpatialPointsDataFrame(crds, unempl[,c(12, 101)])
+proj4string(unempl1)<-"+proj=longlat +datum=WGS84 +ellps=WGS84" 
+unempl1<-spTransform(unempl1, CRS("+proj=merc +datum=WGS84 +ellps=WGS84"))
+
+# map of the analyzed data # Fig.7.24a
+library(GISTools)
+library(RColorBrewer)
+shades<-auto.shading(unempl1@data[,2], n=4, cols=brewer.pal(4, "Blues"))
+choropleth(pow, unempl1@data[,2], shading=shades) # variable map
+
+# decision tree
+library(SPODT)
+division<-spodt(unempl1@data[,2]~1, unempl1, rtwo.min=0.01) 
+spodt.tree(division) # decision tree Fig.7.24b
+#attributes(division)
+division@partition
+
+# division of surfaces with straight oblique lines
+cols<-c("white", "cadetblue1", "deepskyblue", "deepskyblue3", "darkblue")
+brks<-(0:5)*6
+division.line<-spodtSpatialLines(division, unempl1) 
+plot(division.line) # 7.23c
+points(unempl1, cex=unempl1@data$X2018.05/5, bg=cols[findInterval(unempl1@data$X2018.05, brks)], pch=21)
+
+unempl.line@bbox #bounding box – extreme coordinates
+
+# poorly chosen model parameters lead to abstract graphics
+# supplementing missing data with a mean
+unempl1@data[which(is.na(unempl1@data[,1])==TRUE),1]<-mean(unempl1@data[,1], na.rm=TRUE)
+
+sp<-spodt(unempl1@data[,1]~1, unempl1) 
+ssp<-spodtSpatialLines(sp, unempl1) 
+plot(ssp) #7.23d
+points(unempl1, cex=unempl1@data$population.2013/500, pch=21)
+
+# checking which observations are in the selected cluster
+a<-which(division@partition==27) 
+
+# determination of statistics as on the tree chart
+length(unempl1[a,2])
+#[1] 94
+
+# double-check of the average and std.dev in cluster no.27
+mean(unempl1[a,]$X2018.05)
+#[1] 9.732979
+
+var(unempl1[a,]$X2018.05)
+#[1] 16.12697
+
+1
+
+

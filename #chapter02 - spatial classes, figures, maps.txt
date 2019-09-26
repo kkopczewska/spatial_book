@@ -1,0 +1,908 @@
+library(rgdal)
+library(sp)
+
+# loading shapefile files
+pl<-readOGR(".", "Panstwo") # 1 units 
+voi<-readOGR(".", "wojewodztwa") # 16 units 
+pov<-readOGR(".", "powiaty") # 380 units 
+
+# change of projection
+pov<-spTransform(pov, CRS("+proj=longlat+datum=NAD83"))
+voi<-spTransform(voi, CRS("+proj=longlat+datum=NAD83"))
+pl<-spTransform(pl, CRS("+proj=longlat+datum=NAD83"))
+
+class(pov)
+attr(,"package")
+
+pov.df<-as.data.frame(pov)
+pov.df<-as(pov, "data.frame") # the same operation to the above
+class(pov.df)
+
+head(pov.df)
+head(pov@data)
+
+# loading district data
+data<-read.table("poviat_data_2017.csv", sep=";", dec=",", header=TRUE)
+summary(data)
+head(data[,1:6])
+
+# graphics - contour maps plotted separately
+plot(pl) #Fig.2.1a
+plot(voi) #Fig.2.1b
+plot(pov) #Fig.2.1c
+
+library(maps)
+library(GISTools)
+
+# contour map with an arrow and scale
+plot(pov) #Fig.2.2a
+map.scale(x=14.5, y=49.2, ratio=FALSE, relwidth=0.2) # from the maps::
+# from the GISTools:: package
+north.arrow(xb=15.9, yb=49.5, len=0.1, lab="N", cex.lab=0.8, col='gray10') 
+
+# contour map with a rose of directions and a geographic grid
+plot(voi) #Fig.2.2b
+degAxis(1) # from the sp:: package
+degAxis(2)
+compassRose(15, 49.7,rot=0,cex=1) # from the sp:: package
+plot(gridlines(voi), add = TRUE) # from the sp:: package
+
+# coordinates of poviat funds
+crds<-coordinates(pov)
+head(crds)
+
+# figure 2.3 - administrative map and centroids of poviats
+plot(pl, lwd=3)
+plot(pov, add=TRUE)
+plot(voi, add=TRUE, lwd=2) 
+points(crds, pch=21, bg="red", cex=0.8) 
+
+# label preparation and coordinate for the provincial map
+crds.voi<-coordinates(voi)
+voi.df<-as.data.frame(voi)
+par(mar=c(1,1,1,1))
+
+# signing regions in an optimized way
+plot(voi) #Fig.2.4a
+pointLabel(crds.voi, as.character(voi.df$jpt_name_), cex=0.6)
+
+# signing regions in a simple way
+plot(voi) #Fig.2.4b
+text(crds.voi, as.character(voi.df$jpt_name_), cex=0.6)
+par(mar=c(5,4,4,2))
+
+# interactive edition of the names of regions
+plot(pov, border="grey80")
+a<-identify(crds, labels=as.character(pov.df$jpt_name_))
+data[a,c(3,21:23)]
+
+bb<-bbox(pov)
+bb
+
+proj4string(pov)
+
+# regional map - for the Lubelskie Voivodeship
+# version A
+voi.df<-as.data.frame(voi)
+lub.voi<-voi[voi.df$jpt_name_=="lubelskie", ]
+plot(lub.voi, main="Lubelskie NTS2")
+
+# version B
+plot(voi[voi@data$jpt_name_=="lubelskie",])
+
+# map of districts within the Lubelskie Voivodeship
+# pov.df<-as.data.frame(pov) # --> lack of voivodeship identifier
+sub15<-data[data$year==2015, ]
+lub.pov<-pov[sub15$voivodeship=="Lubelskie", ]
+plot(lub.pov, main="Lubelskie NTS4")
+
+# poviats affiliation (NTS4) to voivodship (NTS2)
+pov.over<-over(pov, voi) 
+head(pov.over)
+
+lub.pov<-pov[pov.over$jpt_name_=="lubelskie", ] # choice of poviats
+plot(lub.pov)
+
+plot(lub.pov)
+degAxis(1)
+degAxis(2)
+compassRose(21.5, 52,rot=0,cex=1)
+
+plot(gridlines(lub.voi), add = TRUE)
+
+# separation of two regions 
+voi.df<-as.data.frame(voi)
+voi1<-voi[voi.df$jpt_name_=="kujawsko-pomorskie",]
+voi2<-voi[voi.df$jpt_name_=="wielkopolskie",]
+plot(voi2) # joint plot
+plot(voi1, lwd=2, add=TRUE) #Fig.2.8a
+
+# connection of two regions
+voi3<-spRbind(voi1, voi2)
+voi3.df<-as.data.frame(voi3) 
+crds.voi3<-coordinates(voi3)
+plot(voi3)
+points(crds.voi3) #Fig.2.8b
+text(jitter(crds.voi3), labels=voi3.df$jpt_name_)
+
+sub15<-data[data$year==2015, ]
+reg1<-unionSpatialPolygons(pov, IDs=sub15$voivodeship) #maptools::
+plot(pov)
+plot(reg1, add=TRUE, border="red", lwd=2) #Fig.2.9a
+
+reg2<-unionSpatialPolygons(voi, IDs=rep(1, times=16)) #maptools
+plot(voi)
+plot(reg2, add=TRUE, border="red") #Fig.2.9b
+
+plot(reg1) #Fig.2.10
+plot(reg1[1,], border="blue", add=TRUE) # Dolnoœl¹skie on the map 
+plot(reg1[16,], border="green", add=TRUE) # Zachodniopomorskie on the map 
+lapply(reg1@polygons, slot, "ID")
+
+unlist(lapply(reg1@polygons, slot, "ID"))
+
+# the following variables were selected:
+# column 12 - voivodeship
+# column 22 - XA02 - working in total 
+# column 25 – XA06 - unemployment rate
+
+sub15.lim<-data[data$year==2015, c(12,21,25)] 
+XA02.agg<-aggregate(sub15.lim$XA02, by=list(sub15.lim$voivodeship), sum, na.rm=TRUE)
+XA06.agg<-aggregate(sub15.lim$XA06, by=list(sub15.lim$voivodeship), mean, na.rm=TRUE)
+data.agg<-cbind(XA02.agg, XA06.agg$x)
+rownames(data.agg)<-as.character(XA02.agg$Group.1)
+colnames(data.agg)<-c("voi", "XA02", "XA06")
+      
+companies.lim<-companies[, 23:25]
+head(companies.lim)
+
+# division of the dataset into subsets according to the variable empl
+companies.5<-companies.lim[companies.lim$empl==5,]
+companies.30<-companies.lim[companies.lim$empl==30,]
+companies.150<-companies.lim[companies.lim$empl==150,]
+companies.600<-companies.lim[companies.lim$empl==600,]
+companies.1500<-companies.lim[companies.lim$empl==1500,]
+companies.5lim<-companies.5[1:500,] # limiting the subset
+
+# combining subsets by rows into one set
+companies.f<-rbind(companies.5lim, companies.30, companies.150, companies.600, companies.1500)
+names(companies.f)
+colnames(companies.f)<-c("x","y","z") # change of column names
+
+class(companies.f)
+coordinates(companies.f)<-c("x","y") # changing the class of object
+class(companies.f)
+
+attr(,"package")
+
+proj4string(companies.f)
+proj4string(companies.f)<-"+proj=longlat+datum=WGS84 +ellps=WGS84"
+
+# planar coordinates
+companies.f.merc<-spTransform(companies.f, CRS("+proj=merc+datum=WGS84 +ellps=WGS84")) 
+
+# spherical coordinates 
+companies.f.longlat<-spTransform(companies.f, CRS("+proj=longlat +datum=WGS84 +ellps=WGS84")) 
+  
+# chart of planar points
+plot(companies.f.merc)
+degAxis(1)
+degAxis(2)
+
+# graph of spherical points
+plot(companies.f.longlat, cex=y/500, pch=1)
+plot(voi[voi@data$jpt_name_=="lubelskie",], add=TRUE)
+degAxis(1)
+degAxis(2)
+
+# creating SpatialPointsDataFrame
+x<-c(5,6,7,8,8,7,6,5,4,3,2,2,3,4)
+y<-c(2,3,4,5,6,7,7,6,7,7,6,5,4,3)
+xy<-SpatialPointsDataFrame(matrix(c(x,y), ncol=2), 
+       data.frame(ID=seq(1:length(x))),
+       proj4string=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+plot(xy)
+axis(1)
+axis(2)
+
+library(quickPlot)
+xy.m<-matrix(c(x,y), ncol=2)
+xy.from<-xy.m
+xy.m<-rbind(xy.m[dim(xy.m)[1],],xy.m) # adding an extra line
+xy.to<-xy.m[-dim(xy.m)[1],] # deleting the last row
+xy.lines<-sp2sl(xy.to, xy.from) # the SpatialLines class
+class(xy.lines)
+
+attr(,"package")
+
+plot(xy.lines, lwd=2)
+plot(gridlines(xy), lty=3, add = TRUE) # from the sp package
+axis(1)
+axis(2)
+
+library(raster)
+xy.poly<-spPolygons(xy.m)
+class(xy.poly)
+
+attr(,"package")
+
+xy.polydf<-SpatialPolygonsDataFrame(xy.poly, data.frame(ID=1, type="A"))
+xy.polydf@data
+
+class(xy.polydf)
+attr(,"package")
+
+str(xy.polydf)
+
+slotNames(xy.polydf) # names of slots
+
+slotNames(xy.polydf@polygons[[1]]) # slot names within the slots
+
+xy.polydf@bbox
+
+lapply(xy.polydf@polygons, slot, "ID")
+
+unlist(lapply(reg1@polygons, slot, "ID"))
+
+# generating random colors
+a<-rgb(runif(21,0,1), runif(21,0,1), runif(21,0,1))
+a
+
+a.dim1<-length(a)
+image(1:a.dim1, 1, as.matrix(1:a.dim1), col=a, xlab="grDevices::rgb() / random colors ") #Fig.2.13a
+
+colors() # the first few lines of color names
+
+library(raster)
+r<-raster(xmn=0, xmx=22, ymn=0, ymx=30, nrows=30, ncols=22)
+r[]<-1:660
+plot(r, col=colors()) #Fig.2.13b
+
+col2rgb(c("azure", "azure1", "azure2"), alpha=FALSE)
+
+col2rgb(c("#4B424F", "#BFD15C", "#A44845"), alpha=FALSE)
+
+library(RColorBrewer)
+display.brewer.all() # all pallets from the package
+display.brewer.pal(11,'Spectral') # displaying the palette #Fig.2.14a
+display.brewer.pal(9,'OrRd') # displaying the palette #Fig.2.14b
+cols<-brewer.pal(n=5, name="RdBu") # saving selected colors
+
+library(wesanderson)
+cols1<-wes_palette("GrandBudapest1", 4, type="discrete")
+cols1 #Fig.2.15a
+cols2<-wes_palette("GrandBudapest1", 21, type="continuous")
+cols2 #Fig.2.15b
+
+library(quickPlot)
+# palette from the command example
+a<-divergentColors("darkred", "darkblue", -10, 10, 0, "white")
+
+a.dim1<-length(a)
+image(1:a.dim1, 1, as.matrix(1:a.dim1), col=a, xlab="quickPlot::divergentColors() / darkred-darkblue") #Fig.2.16a
+
+# another palette
+a<-divergentColors("chocolate4", "peachpuff4", -10, 10, 0, "white")
+
+a.dim1<-length(a)
+image(1:a.dim1, 1, as.matrix(1:a.dim1), col=a, xlab="quickPlot::divergentColors() / chocolate-peachpuff") #Fig.2.16b
+
+library(viridis)
+library(scales)
+viridis.map
+
+col1<-viridis(15, option="D") # the default viridis colors
+show_col(col1) #Fig.2.17a
+
+col2<-viridis(15, option="B") # inferno palette
+show_col(col2) #Fig.2.17b
+
+library(ggplot2)
+#Fig.2.18a
+ggplot(data.frame(x=rnorm(10000),y =rnorm(10000)), aes(x=x, y=y)) +
+ geom_hex() + coord_fixed() + scale_fill_viridis() + theme_bw() 
+
+# creating a data set in the data.frame class
+data<-data.frame(x=1:100, y=rnorm(100), z=sample(1:100, 100))
+head(data)
+
+#Fig.2.18b
+ggplot(data) +aes(x, y, color=z) +geom_point() +scale_color_viridis_c() 
+      
+# loading district data
+data<-read.table("data_poviat_2017.csv", sep=";", dec=",", header=TRUE)
+summary(data)
+
+library(shape)
+variable<-data$XA06[data$year==2015]
+maxy<-40
+breaks<-c(0, 5, 10, 15, 20, 25, 30, 35, 40) # used in the legend 
+nclr<-8
+plotclr<-brewer.pal(nclr, "Reds") # from the RColorBrewer package 
+fillRed<-colorRampPalette(plotclr) # from the grDevices package 
+colcode<-fillRed(maxy)[round(variable) + 1] # fillRed is a function 
+
+plot(pov, col=colcode, lty=0) 
+plot(voi, add=TRUE, lwd=1, border="gray60") 
+
+map.scale(x=18.0, y=49.15, ratio=FALSE, relwidth=0.15, metric=TRUE)
+compassRose(15, 49.7,rot=0,cex=1) # from the sp package
+
+colorlegend(posy=c(0.05,0.9), posx=c(0.9,0.92), col=fillRed(maxy), zlim=c(0, maxy), zval=breaks, main.cex=0.9) # from the shape:: package
+
+title(main="Unemployment rate in 2015 r.", sub="At the NTS4 level, according to the Central Statistical Office data")
+
+variable<-data$XA06[data$year==2015]
+library(GISTools)
+
+choropleth(pov, variable) # from the GISTools:: package
+shades<-auto.shading(variable)
+choro.legend(15, 50, shades, cex=0.65, bty="n")
+
+shades<-auto.shading(variable, n=6, cols=brewer.pal(6, "Purples"))
+choropleth(pov, variable, shading=shades)
+
+# division into automatic intervals, 
+# lower transparency
+shades<-auto.shading(variable, n=6, cols=add.alpha(brewer.pal(6, "Greens"), 0.5))
+choropleth(pov, variable, shading=shades)
+choro.legend(14.3, 50.2, shades, under="below", over="above", between="to", cex=0.6, bty="n")
+
+# division into intervals by mean and std.dev, 
+# higher transparency
+shades<-auto.shading(variable, n=6, cols=add.alpha(brewer.pal(6, "Greens"),0.35), cutter=sdCuts)
+choropleth(pov, variable, shading=shades)
+choro.legend(14.3, 50.2, shades, under="below", over="above", between="to", cex=0.6, bty="n")
+
+variable<-data$nr.wojew[data$year==2015]
+brks<-(0:16)*2
+brks
+
+cols<-c("blue3", "cornflowerblue", "seagreen1", "yellow", "chocolate1", "orangered1", "brown3", "coral4", "salmon4", "aquamarine3", "darkgreen", "chartreuse3", "cyan4", "darkred", "darkviolet", "cadetblue3", "blue")
+
+par(mar=c(1,1,1,1)) # Fig.Xa
+plot(pov, col=cols[findInterval(variable, brks)], border="grey80")
+plot(voi, add=TRUE, lwd=1)
+par(mar=c(5,4,4,2))
+
+# labels of provincial names
+crds.voi<-coordinates(voi)
+voi.df<-as.data.frame(voi)
+text(crds.voi, label=voi.df$jpt_name_, cex=0.7, font=2)
+
+variable<-data$NO.voiew[data$year==2015]
+brks<-(0:16)*2
+dens<-(2:length(brks))*3
+
+par(mar=c(1,1,1,1)) # Rys.Xb
+plot(pov, density=dens[findInterval(variable, brks, all.inside=TRUE)], border="grey80")
+plot(voi, add=TRUE, lwd=1)
+par(mar=c(5,4,4,2))
+
+library(classInt)
+variable<-data$XA06[data$year==2015]
+summary(variable)
+
+intervals<-8
+colors<-brewer.pal(intervals, "BuPu") # choice of colors
+classes<-classIntervals(variable, intervals, style="fixed", 
+       fixedBreaks=c(0, 5, 10, 15, 20, 25, 30, 35, 40))
+color.table<-findColours(classes, colors) 
+
+plot(pov, col=color.table)
+plot(voi, lwd=2, add=TRUE)
+legend("bottomleft", legend=names(attr(color.table, "table")), fill=attr(color.table, "palette"), cex=0.8, bty="n")
+title(main="Unemployment rate in poviats in 2015”)
+
+# data preparation - aggregation and merging
+sub15.lim<-data[data$year==2015, c(12,21,25)] 
+XA02.agg<-aggregate(sub15.lim$XA02, by=list(sub15.lim$voivodeship), sum, na.rm=TRUE)
+XA06.agg<-aggregate(sub15.lim$XA06, by=list(sub15.lim$voivodeship), mean, na.rm=TRUE)
+data.agg<-cbind(XA02.agg, XA06.agg$x)
+colnames(data.agg)<-c("voi", "XA02", "XA06")
+data.agg$voi<-tolower(data.agg$voi) # changing the size of letters to small
+
+# combining data with identifiers from the map
+order<-data.frame(order=voi@data[,6]) # order of regions from the map
+voi.set<-merge(order, data.agg, by.x="order", by.y="voi", sort=FALSE, all.x=TRUE)
+rownames(voi.set)<-0:15 # naming the lines
+
+# attach a dataset to SpatialPolygonsDataFrame
+voi<-SpatialPolygonsDataFrame(voi, voi.set)
+
+# map by default settings
+spplot(voi, "XA02", main="Population by voivodships")
+
+# map with changed palette
+library(viridis)
+spplot(voi, "XA02", main="Population by voivodships", col.regions=rev(viridis(17, option="B")))
+
+# a map with a changed palette and a fixed number of intervals
+library(RColorBrewer)
+spplot(voi, "XA02", main="Population by voivodships", col.regions=brewer.pal(9, "BuPu"), cuts=7)
+
+# map with changed palette and set interval values
+library(classInt) # to set intervals
+library(quickPlot) # to set colors
+brks<-classIntervals(voi@data$XA02, style="sd")
+cols<-divergentColors("darkred", "darkblue", -10, 10, 0, "white")
+spplot(voi["XA02"], main="Population by voivodships", at=brks$brks, col.regions=cols)
+
+# scatterplot of empirical data
+plot(voi[voi@data$jpt_name_=="lubelskie",])
+points(companies$coords.x1, companies$coords.x2, pch=".")
+
+companies.lim1<-companies[,c("GR_LPRAC", "podreg", "coords.x1", "coords.x2")] # selection of variables
+coordinates(companies.lim1)<-c("coords.x1","coords.x2") # class change
+spplot(companies.lim1)
+
+companies.lim1<-companies[,c("SEK_PKD7", "coords.x1", "coords.x2")]
+coordinates(companies.lim1)<-c("coords.x1","coords.x2") # class change
+spplot(companies.lim1, key.space="left")
+
+# selected variables: x and y coordinates, employment, sector
+companies.sel<-companies[1:2000,c(23,24,25,12)] # selected columns
+colnames(companies.sel)<-c("x","y","empl","sector") # names change
+coordinates(companies.sel)<-c("x","y") # class change
+
+par(mar=c(1,1,1,1)) # chart margins
+plot(companies.sel, pch=1, cex=sqrt(companies.sel$empl)/3, axes=TRUE)
+v<-c(5,30,150,600) # the scale of the legend
+legend("topleft", legend=v, pch=1, pt.cex=sqrt(v)/10, bty="n")
+plot(voi[voi@data$jpt_name_=="lubelskie",], add=TRUE, lwd=2)
+par(mar=c(5,4,4,2))
+
+
+variable<-companies$podreg
+locs<-companies[,23:24]
+summary(variable)
+brks<-c(1, 2, 3, 4)
+cols<-c("blue3", "cornflowerblue", "seagreen1", "green2")
+
+plot(voi) #Fig.2.28a
+points(locs, col=cols[findInterval(variable, brks)], pch=21, cex=0.7, 
+       bg=cols[findInterval(variable, brks)])
+legend("bottomleft", legend=brks, fill=cols, cex=0.8, bty="n")
+title(main="Points - colors by values")
+
+lub.voi<-voi[voi.df$jpt_name_=="lubelskie", ] 
+plot(lub.voi) #Fig.2.28b
+points(locs, col=cols[findInterval(variable, brks)], pch=21, cex=0.7, 
+       bg=cols[findInterval(variable, brks)])
+legend("bottomleft", legend=brks, fill=cols, cex=0.8, bty="n")
+title(main="Points - colors by values")
+
+savePlot(filename="locations and random values", type="jpg")
+
+variable<-data$XA31[data$year==2015]
+summary(variable)
+crds<-coordinates(pov)
+brks<-c(60, 80, 100, 120, 140, 160, 180)
+size<-(brks/100)*1.2
+cols=brewer.pal(7, "Reds")
+
+plot(pov, border="grey90") #Fig.2.29
+plot(voi, border="grey50", add=TRUE,)
+points(crds, col=cols[findInterval(variable, brks)], 
+cex=size[findInterval(variable, brks)], pch=21, bg=cols[findInterval(variable, brks)])
+legend("bottomleft", legend=brks, pt.bg=cols, pt.cex=size, bty="n", pch=21)
+title(main="Average salary in Poland = 100% year 2015",
+       sub="In the legend, the interval from …")
+savePlot(filename="Average salary", type="jpg")
+
+sub15<-data[data$year==2015,]
+data.lub<-data[data$voivodeship=="Lubelskie",]
+data.lub$poviat
+
+pov.sel<-pov[sub15$poviat=="Poviat Lublin",]
+companies.sp<-companies
+coordinates(companies.sp)<-c("coords.x1","coords.x2") # class change
+proj4string(companies.sp)<-CRS("+proj=longlat +datum=NAD83")
+pov.sel<-spTransform(pov.sel, CRS("+proj=longlat +datum=NAD83"))
+companies.sp<-spTransform(companies.sp, CRS("+proj=longlat +datum=NAD83"))
+
+# way with over()
+locs.lim<-over(companies.sp, pov.sel)
+
+par(mar=c(1,1,1,1))
+plot(voi[voi@data$jpt_name_=="lubelskie",])# plot of whole voivodeship
+locs<-companies[,23:24] # all points of the class data.frame
+points(locs, col="grey80", pch=".", cex=0.7) # plot of all points
+points(locs[locs.lim$jpt_name_=="poviat Lublin",], pch=".", cex=1.1)
+plot(pov.sel, add=TRUE, border="red") # plot of selected poviat
+par(mar=c(5,4,4,2))
+
+# way with gIntersects()
+library(rgeos)
+locs.lim<-gIntersects(pov.sel, companies.sp, byid=T)
+
+par(mar=c(1,1,1,1))
+plot(voi[voi@data$jpt_name_=="lubelskie",])# plot of whole voivodeship
+locs<-companies[,23:24] # all points of the class data.frame
+points(locs, col="grey80", pch=".", cex=0.7) # plot of all points
+points(locs[locs.lim==TRUE,], pch=".", cex=1.1)
+plot(pov.sel, add=TRUE, border="red") # plot of selected poviat
+par(mar=c(5,4,4,2))
+
+
+# preparation of data based on the previous example
+companies.Lublin<-companies[locs.lim==TRUE,] 	# companies in Lublin
+pov.Lublin<-pov.sel	# contour map of Lublin
+par(mar=c(1,1,1,1))
+plot(pov.Lublin)
+points(companies.Lublin[,23:24], pch=".", cex=1.5)
+par(mar=c(5,4,4,2))
+
+bbox(pov.Lublin)
+
+# creating a raster
+library(raster)
+x1<-companies.Lublin[,23]	# co-ordinates x
+y1<-companies.Lublin[,24]	# co-ordinates y
+xy1<-cbind(x1,y1)
+p1<-data.frame(xy1, z=companies.Lublin[,25]) # coordinates and population
+r<-raster(nrows=50, ncols=50, ymn=51.14, ymx=51.30, xmn=22.45, xmx=22.67)
+r1<-rasterize(xy1, r, field=p1$z, fun=sum)
+
+proj.map<-crs(pov.Lublin) # explore the map projection
+proj.map
+#CRS arguments:
+# +proj=longlat +datum=NAD83 +ellps=GRS80 +towgs84=0,0,0
+
+proj.raster<-crs(r1) # examination of the raster projection
+proj.raster
+#CRS arguments:
+# +proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0
+
+crs(r1)<-proj.map # change of raster projection to map projection
+crs(r1)
+
+plot(r1, main="Employment in companies")
+plot(pov.Lublin, add=TRUE)
+
+class(r)
+class(r1)
+attr(,"package")
+
+# creating a raster on 10'000 grids
+r<-raster(ncols=100, nrows=100, ymn=-50, ymx=50, xmn=-50, xmx=50)
+
+ncell(r)
+# integers, the assignment of values is a raster
+r[]<-round(runif(ncell(r), 1,8), digits=0) 
+plot(r) # Fig.2.32a
+
+r1<-r^2
+plot(r1) # Fig.2.32b
+
+vals<-extract(r, 1:ncell(r))
+head(vals)
+
+table(companies.Lublin$SEK_PKD7)
+
+companies.Lublin$ones<-rep(1, times=dim(companies.Lublin)[1])
+companies.LublinG<-companies.Lublin[companies.Lublin$SEK_PKD7=="G",]
+companies.LublinA<-companies.Lublin[companies.Lublin$SEK_PKD7=="A",]
+
+r<-raster(nrows=50, ncols=50, ymn=51.14, ymx=51.30, xmn=22.45, xmx=22.67)
+
+x1<-companies.LublinG[,23] # company location - x coordinates
+y1<-companies.LublinG[,24] # company location - y coordinates
+xy1<-cbind(x1,y1) # x and y coordinates as data.frame
+p1<-data.frame(xy1, z=companies.LublinG$ones) 
+r1<-rasterize(xy1, r, field=p1$z, fun=sum) # counting sec.G companies
+
+x2<-companies.LublinA[,23]
+y2<-companies.LublinA[,24]
+xy2<-cbind(x2,y2)
+p2<-data.frame(xy2, z=companies.LublinA$ones) # counting sec.A companies
+r2<-rasterize(xy2, r, field=p2$z, fun=sum)
+
+plot(r1, col=colorRampPalette(c("cornsilk2", "indianred1", "brown3"))(255), main="Spatial distribution companies from the sector G ")
+plot(pov.Lublin, add=TRUE)
+
+plot(r2, col=colorRampPalette(c("cornsilk2", "indianred1", "brown3"))(255), main="Spatial distribution of companies from the sector A")
+plot(pov.Lublin, add=TRUE)
+
+# Pearson's correlation
+cor.r<-corLocal(r1, r2, ngb=5, method="pearson", test=TRUE) 
+summary(cor.r)
+
+# Pearson statistics chart
+plot(cor.r$pearson, main="Correlation of the number of companies from sectors G and A")
+plot(pov.Lublin, add=TRUE)
+
+# p-value graphplot(cor.r$p.value, main="p-value of correlations between the number of companies from sectors G and A ")
+plot(pov.Lublin, add=TRUE)
+
+ct<-crosstab(r1, r2) 
+head(ct)
+
+# raster and graph of significant differences
+library(SDMTools)
+out<-SigDiff(r1,r2, pattern=FALSE)
+out.val<-extract(out, 1:ncell(out))
+
+proj.map<-crs(pov.Lublin) # explore the map projection
+proj.raster<-crs(out) # examination of the raster projection
+crs(out)<-proj.map # change of raster projection to map projection
+
+# figure based on ImageDiff()
+plot(pov.Lublin)
+ImageDiff(out, main="Pattern Differences", axes=FALSE, 
+       tcol=c("indianred1","cornsilk2","palegreen1"), add=TRUE) 
+
+legend('bottomright', title='significance', 
+legend=c('lower','greater','not significant'), fill=c("indianred1","palegreen1","cornsilk2"),bg='white', bty='n')
+
+# figure based on plot()
+plot(pov.Lublin)
+plot(out, add=TRUE)
+cols<- rev(terrain.colors(12))
+legend('bottomright', title='significance', 
+legend=c('lower', 'not significant', 'greater'), fill=c(cols[1], cols[6], cols[12]), bg='white', bty='n', cex=0.8)
+
+# raster converted to the SpatialPointsDataFrame class
+r1p<-rasterToPoints(r1, spatial=TRUE)
+r2p<-rasterToPoints(r2, spatial=TRUE)
+plot(r1p, pch=21, bg="red")
+points(r2p, pch=21, bg="yellow", cex=0.8) #Fig.2.36a
+plot(pov.Lublin, add=TRUE)
+degAxis(1)
+degAxis(2)
+
+# converted raster is a matrix class
+r1p<-rasterToPoints(r1)
+r2p<-rasterToPoints(r2)
+plot(r1p, pch=21, bg="red") #Fig.2.36b
+points(r2p, pch=21, bg="yellow", cex=0.8)
+plot(pov.Lublin, add=TRUE)
+
+# conversion raster to polygons and W matrix
+r1.poly<-rasterToPolygons(r1, na.rm=FALSE)
+r1p.nb<-poly2nb(r1.poly)
+r1p.listw<-nb2listw(r1p.nb)
+r1.df<-as.data.frame(r1, na.rm=FALSE, xy=FALSE)
+summary(r1.df)
+
+r1.df<-as.data.frame(r1, na.rm=FALSE, xy=TRUE)
+summary(r1.df)
+
+# creation of a map section - voivodeship (NTS2) Lubelskie
+voi.df<-as.data.frame(voi) 
+lub.voi<-voi[voi.df$jpt_name_=="lubelskie", ] 
+
+grid.lub<-makegrid(lub.voi, n=100) # grid as part of a bounding box
+
+plot(grid.lub)# planar result
+plot(lub.voi, add=TRUE) # spherical layer
+
+plot(lub.voi)	# spherical layer
+points(grid.lub, pch=".", cex=1.5) # planar result
+
+# spherical grid
+grid.lub.sp<-SpatialPoints(grid.lub, proj4string=CRS(proj4string(lub.voi)))
+
+plot(grid.lub.sp) # Fig.2.38a layer 1: grid, layer 2: contour
+plot(lub.voi, add=TRUE)
+
+plot(lub.voi) # Fig.2.38b layer 1: contour, layer 2: grid
+plot(grid.lub.sp, add=TRUE)
+
+grid.limited<-grid.lub.sp[lub.voi, ]
+plot(lub.voi) # Fig. 2.38c - grid is narrowed to the region border
+plot(grid.limited, add=TRUE)
+
+# reading grid for population and conversion of projection
+pop<-reatoGR(".", "PD_STAT_GRID_CELL_2011")
+pop<-spTransform(pop, CRS("+proj=longlat +datum=NAD83"))
+
+pop.df<-as.data.frame(pop) # extracting the data to the data.frame object
+head(pop.df)
+
+pop.grid<-as(pop, "SpatialPolygons") # separation of grid
+
+str(pop) # checking the structure of slots and sockets
+summary(pop@data$FEM_RATIO) # summary of the selected variable
+
+# conversion to the numerical data of subsequent columns of the data set
+for(i in 1:15){ # does not work for all variables
+pop.df[,i]<-as.numeric(levels(pop.df[,i]))[pop.df[,1]]}
+
+# cutting the contour map
+pov.lub<-pov[pov@data$jpt_name_=="poviat Lublin",]
+
+lim<-over(pop.grid, pov.lub) # limitid wider grid with narrow contour map
+head(lim[,1:7]) # data.frame class object
+
+a<-which(lim$jpt_name_=="poviat Lublin") # rows fulfilling the condition
+head(lim[a,1:7])
+
+# conditional grid and data.frame restriction on the selected site
+pop.grid.lub<-pop.grid[lim$jpt_name_=="poviat Lublin", ]
+pop.df.lub<-pop.df[a, ]
+
+# Fig. 2.39a - administrative contour and grid
+plot(pop.grid.lub)
+plot(pov.lub, add=TRUE)
+
+# Fig. 2.39b - values of the variable
+library(GISTools)
+choropleth(pop.grid.lub, pop.df.lub$TOT)
+plot(pov.lub, add=TRUE)
+
+library(raster)
+names(companies)
+
+# selected variables: x and y coordinates, employment, sector
+companies.sel<-companies[,c(23,24,25,12)]
+colnames(companies.sel)<-c("x","y","empl","sector") # change of names
+coordinates(companies.sel)<-c("x","y") # changing object class
+
+pop.grid.lub$ID<-rownames(pop.df.lub) # identifier of units in the grid
+pop.df.lub$ID<-rownames(pop.df.lub) # identifier of units in data.frame
+crs(companies.sel)<-crs(pop.grid.lub) # agreeing the projections
+
+# assigning grid ID to companies
+companies.sel$ID<-over(companies.sel, pop.grid.lub) 
+head(companies.sel)
+
+summary(companies.sel)
+
+crds<-coordinates(pop.grid.lub) 	# grid cell centroids
+plot(pop.grid.lub)			# grid chart
+#text(crds, labels=pop.grid.lub$ID, cex=0.4)
+library(maptools)
+pointLabel(crds, labels=pop.grid.lub$ID, cex=0.4)
+
+# change of the object's class
+companies.sel.df<-as.data.frame(companies.sel)
+head(companies.sel.df)
+
+# aggregation of point data according to the ID of the grid set 
+# statistics - the number of observations and the total employment
+companies.agg.no<-aggregate(companies.sel.df$ID, by=list(companies.sel.df$ID), length)
+companies.agg.sum<-aggregate(companies.sel.df$empl, by=list(companies.sel.df$ID), sum)
+head(companies.agg.no)
+
+# combining files by merge()
+pop.df.lub.m<-merge(pop.df.lub, companies.agg.no, by.x="ID", by.y="Group.1", all.x=TRUE)
+pop.df.lub.m<-merge(pop.df.lub.m, companies.agg.sum, by.x="ID", by.y="Group.1", all.x=TRUE)
+
+names(pop.df.lub.m)
+
+m1<-which(is.na(pop.df.lub.m$x.x))
+pop.df.lub.m$x.x[m1]<-0
+choropleth(pop.grid.lub, pop.df.lub.m$x.x) # number of companies
+title(main="The number of companies in the grid") #Fig.2.40a
+shades<-auto.shading(pop.df.lub.m$x.x)
+choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
+
+m2<-which(is.na(pop.df.lub.m$x.y))
+pop.df.lub.m$x.y[m2]<-0
+choropleth(pop.grid.lub, pop.df.lub.m$x.y) # total employment 
+title(main="Total employment in firms in the grid ") #Fig.2.40b
+choropleth(pov, variable) # from the GISTools package
+shades<-auto.shading(pop.df.lub.m$x.y)
+choro.legend(22.65, 51.2, shades, cex=0.65, bty="n")
+
+levels(companies.sel$sector)
+
+head(companies.sel)
+
+sectors<-LETTERS[seq(from=1, to=19)]
+sectors
+
+for(i in 1:19){
+sub<-companies.sel.df[companies.sel.df$sector==sectors[i],]
+sub.agg<-aggregate(sub$ID, by=list(sub$ID), length)
+pop.df.lub.m<-merge(pop.df.lub.m, sub.agg, by.x="ID", by.y="Group.1", all.x=TRUE)
+colnames(pop.df.lub.m)[19+i]<-paste("Sector", sectors[i], sep="_")}
+
+pop.df.lub.m$count<-(19-rowSums(is.na(pop.df.lub.m[,20:38])))
+head(pop.df.lub.m)[,20:40]
+
+library(classInt)
+variable<-pop.df.lub.m$count
+colors<-brewer.pal(9, "BuPu") # choice of colors
+classes<-classIntervals(variable, compartments, style="fixed", 
+       fixedBreaks=c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18))
+table.colors<-findColours(casses, colors) 
+
+plot(pop.grid.lub, col= table.colors) #Fig.2.41
+plot(pov.lub, add=TRUE)
+
+legend("bottomleft", legend=names(attr(table.colors, "table")), fill=attr(tabela.kolorów, "palette"), cex=0.8, bty="n")
+title(main="The number of sectors represented by companies
+within grid")
+
+# selected variables: x and y coordinates, employment, sector
+companies.sel<-companies[,c(23,24,25,12)]
+colnames(companies.sel)<-c("x","y","empl","Sector") # change of names
+
+# spreading coordintaes by epsilon
+companies.sel$x<-jitter(companies.sel$x) # coordinate x
+companies.sel$y<-jitter(companies.sel$y) # coordinate y
+coordinates(companies.sel)<-c("x","y") # change of class to SpatialPoints
+library(rgeos)
+tri.full<-gDelaunayTriangulation(companies.sel) # triangulation
+tri.lim<-gDelaunayTriangulation(companies.sel[1:1000,])
+
+plot(tri.full) #Fig.2.42a
+
+plot(tri.lim) #Fig.2.42b
+points(companies.sel[1:1000,], col="red", pch=".", cex=3)
+
+# selected variables: x and y coodinates, employment, sector
+companies.sel<-companies[1:2000,c(23,24,25,12)]
+colnames(companies.sel)<-c("x","y","empl","Sector") # change of names
+# spreading coordintaes by epsilon
+companies.sel$x<-jitter(companies.sel$x) # coordinate x
+companies.sel$y<-jitter(companies.sel$y) # coordinate y
+
+# preparation of point data in different classes
+# required for gBuffer() – planar coordinates
+xy<-cbind(companies.sel$x, companies.sel$y)
+xy.sp<-SpatialPoints(xy) 
+
+# required for over() - spherical coordinates
+companies.sp<-companies.sel
+coordinates(companies.sp)<-c("x","y")
+projection<-"+proj=longlat +datum=WGS84"
+proj4string(companies.sp)<-projection
+companies.sp<-spTransform(companies.sp, CRS("+proj=longlat +datum=NAD83"))
+
+# creating circles and checking the affiliation of points to a circle
+imax<-2000 # for 2000 observations
+library(rgeos)
+for(i in 1:imax){
+ring<-gBuffer(xy.sp[i,], quadsegs=50, byid=TRUE, width=0.1) 
+proj4string(ring)<-CRS("+proj=longlat+datum=NAD83")
+ring<-spTransform(ring, CRS("+proj=longlat+datum=NAD83"))
+companies.sel[,i+5]<-over(companies.sp, ring) # checking the affiliation
+companies.sel[i,5]<-sum(companies.sel$empl*companies.sel[,i+5], na.rm=TRUE) / sum(companies.sel[,i+5], na.rm=TRUE) # average population of neighbors }
+
+# chart of the number of people populated in point vs. at neighbourhood
+plot(companies.sel$empl[1:imax], companies.sel[1:imax,5]) # Fig.2.43a
+
+# how many neighbors around a given point
+# counted as the sum of subsequent columns
+companies.sel$firms.around<-apply(companies.sel[,6:2005], 2, sum, na.rm=TRUE)
+
+# a graph of the number of neighbors nearby - Fig. 2.43b
+companies.sel1<-companies.sel[,c("x", "y", "firms.around")]
+coordinates(companies.sel1)<-c("x","y") # change of class
+
+spplot(companies.sel1, key.space="bottom", sp.layout=list(voi[voi@data$jpt_name_=="lubelskie",], col='grey'))
+
+pov.lub<-pov[pov@data$jpt_name_=="poviat Lublin",]
+point.lub<-spsample(pov.lub, 100, type="random")
+
+radius<-rnorm(100, mean=0.007, sd=0.003)
+xy<-cbind(point.lub@coords[,1], point.lub@coords[,2]) 
+xy.sp<-SpatialPoints(xy) # required for gBuffer
+circles<-gBuffer(xy.sp, quadsegs=50, byid=TRUE, width=radius)
+
+plot(pov.lub, lwd=2) # Fig.2.44a
+points(point.lub, pch=".", cex=2) 
+plot(circles, add=TRUE)
+
+# union (common part) of overlapping circles 
+circles.union<-gUnaryUnion(circles) # from the package rgeos
+plot(pov.lub, lwd=2) # Fig.2.44b
+plot(circles.union, add=TRUE)
+
+gArea(circles)
+
+gArea(circles.union)
+
+gArea(pov.lub)
+
+
+
+
+
+
+
+
+
