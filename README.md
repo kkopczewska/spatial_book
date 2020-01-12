@@ -2,8 +2,11 @@
 Data and R codes to book on spatial data analysis
 
 This project includes datasets and codes to two books:
+
 In English: Applied Spatial Statistics and Econometrics: Data Analysis in R (Routledge, 2020) 
+
 In Polish: Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie maszynowe, analiza danych (CeDeWu, 2020)
+
 Editor: Katarzyna Kopczewska 
 Authors: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
 
