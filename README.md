@@ -21,3 +21,5 @@ Each *.txt file includes codes used in the book in given chapter, to replicate a
 Example data include shapefile maps as well as datasets. 
 Shapefiles are for Poland on NTS0, NTS2 and NTS4 levels. These are open data from http://www.gugik.gov.pl
 Datasets are also for Poland, collected from Central Statistical Office (www.stat.gov.pl). These are NTS4 socio-economic data and geo-coded point data. 
+
+If powiaty map does not work, please download in zip from here: https://www.sugarsync.com/pf/D1836703_09668593_6847342
