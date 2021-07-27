@@ -12,7 +12,7 @@ In Polish: Przestrzenne metody ilościowe w R: statystyka, ekonometria, uczenie 
 availabe at/dostępna na: 
 https://www.cedewu.pl/Przestrzenne-metody-ilosciowe-w-R-statystyka-ekonometria-uczenie-maszynowe-analiza-danych-p2865
 
-Editor: Katarzyna Kopczewska 
+Editor: Katarzyna Kopczewska
 Authors: Katarzyna Kopczewska, Maria Kubara, Piotr Ćwiakowski, Mateusz Kopyt, Piotr Wójcik, Alessandro Festi, Kateryna Zabarina
 
 This book is a part of project supported by the Polish National Science Center (NCN) on „Spatial econometric models with fixed and changing neighborhood structure. Application for real estate valuation and business location” (OPUS 12, contract no. UMO-2016/23/B/ HS4/02363).
@@ -23,3 +23,5 @@ Shapefiles are for Poland on NTS0, NTS2 and NTS4 levels. These are open data fro
 Datasets are also for Poland, collected from Central Statistical Office (www.stat.gov.pl). These are NTS4 socio-economic data and geo-coded point data. 
 
 If powiaty map does not work, please download in zip from here: https://www.sugarsync.com/pf/D1836703_09668593_6847342
+
+In case of any issues please contact me: kkopczewska@wne.uw.edu.pl. 
